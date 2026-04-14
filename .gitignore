@@ -6,3 +6,4 @@ tmp/
 .antigrativy/
 .venv/
 __pycache__/
+config.yaml

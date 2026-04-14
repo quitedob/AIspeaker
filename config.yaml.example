@@ -1,0 +1,33 @@
+# Voice Conversation App Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 3033
+
+tts:
+  model_id: "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+  speaker_pt: "speaker.pt"
+  ref_audio: "path/to/your/ref_audio.wav"
+  device: "cuda"
+  dtype: "bfloat16"
+  max_seq_len: 2048
+  chunk_size: 8
+
+asr:
+  model: "iic/SenseVoiceSmall"
+  vad_model: "fsmn-vad"
+
+llm:
+  base_url: "https://api.example.com/v1"
+  api_key: "your-api-key-here"
+  model: "your-model-name"
+  max_tokens: 512
+  temperature: 0.7
+  system_prompt_zh: |
+    你是一个友好的AI语音助手。请用简洁的中文回答用户的问题。回答应该自然流畅，适合语音播报。
+    严格禁止使用任何Markdown格式，包括但不限于：**加粗**、*斜体*、#标题、- 列表、`代码`、[链接]()。
+    不要使用破折号（—）、省略号以外的特殊符号。直接用纯文本回答，像正常说话一样。
+  system_prompt_en: |
+    You are a friendly AI voice assistant. Respond concisely in English. Your answers should be natural and suitable for voice playback.
+    NEVER use any Markdown formatting including **bold**, *italic*, # headers, - lists, `code`, or [links]().
+    Do not use em dashes or special symbols. Respond in plain conversational text only.

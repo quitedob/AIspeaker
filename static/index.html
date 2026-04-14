@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>语音助手</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #0d0d0d; color: #e0e0e0;
+    height: 100vh; display: flex; overflow: hidden;
+  }
+
+  /* Sidebar */
+  #sidebar {
+    width: 240px; background: #141414; border-right: 1px solid #2a2a2a;
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  #sidebar-header {
+    padding: 12px; border-bottom: 1px solid #2a2a2a;
+  }
+  #new-conv-btn {
+    width: 100%; padding: 8px; background: #4a9eff; color: #fff; border: none;
+    border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  #new-conv-btn:hover { background: #3a8eef; }
+  #conv-list {
+    flex: 1; overflow-y: auto; padding: 6px;
+  }
+  #conv-list::-webkit-scrollbar { width: 3px; }
+  #conv-list::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .conv-item {
+    padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center;
+    color: #aaa; transition: all 0.15s;
+  }
+  .conv-item:hover { background: #222; color: #ddd; }
+  .conv-item.active { background: #2a2a2a; color: #fff; }
+  .conv-item .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv-item .del-btn {
+    display: none; background: none; border: none; color: #666; cursor: pointer;
+    font-size: 14px; padding: 0 4px; flex-shrink: 0;
+  }
+  .conv-item:hover .del-btn { display: block; }
+  .conv-item .del-btn:hover { color: #e74c3c; }
+
+  /* Stats bar */
+  #stats-bar {
+    padding: 8px 12px; border-top: 1px solid #2a2a2a; font-size: 11px; color: #555;
+    flex-shrink: 0;
+  }
+  #stats-bar .stat-row {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
+  }
+  #stats-bar .stat-row:last-child { margin-bottom: 0; }
+  #stats-bar .stat-label { color: #666; }
+  #stats-bar .stat-val { color: #999; font-variant-numeric: tabular-nums; }
+  .stat-meter {
+    height: 4px; background: #222; border-radius: 2px; flex: 1; margin: 0 6px; overflow: hidden;
+  }
+  .stat-meter-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+  .meter-ok { background: #4a9eff; }
+  .meter-warn { background: #e6a23c; }
+  .meter-crit { background: #e74c3c; }
+
+  /* Main area */
+  #main {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a; flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 600; }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ctrl-btn {
+    background: #2a2a2a; border: 1px solid #3a3a3a; color: #ccc;
+    padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    transition: all 0.2s; user-select: none;
+  }
+  .ctrl-btn:hover { background: #3a3a3a; color: #fff; }
+  .ctrl-btn.active { background: #4a9eff; border-color: #4a9eff; color: #fff; }
+  #skill-select {
+    -webkit-appearance: menulist; appearance: menulist;
+    background: #2a2a2a; border: 1px solid #3a3a3a; color: #e0e0e0;
+    padding: 5px 10px; border-radius: 6px; font-size: 13px;
+    cursor: pointer; outline: none; min-width: 140px;
+  }
+  #skill-select option { background: #2a2a2a; color: #e0e0e0; }
+  #skill-select:hover, #skill-select:focus { border-color: #4a9eff; }
+
+  #chat {
+    flex: 1; overflow-y: auto; padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  #chat::-webkit-scrollbar { width: 4px; }
+  #chat::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .msg {
+    max-width: 80%; padding: 10px 14px; border-radius: 14px;
+    font-size: 15px; line-height: 1.6; word-break: break-word;
+  }
+  .msg.user { align-self: flex-end; background: #2a5a8a; border-bottom-right-radius: 4px; }
+  .msg.assistant { align-self: flex-start; background: #2a2a2a; border-bottom-left-radius: 4px; }
+  .msg .label { font-size: 11px; color: #888; margin-bottom: 3px; }
+  .msg .text { white-space: pre-wrap; }
+  .msg.hidden-subtitle { display: none; }
+
+  footer {
+    padding: 14px 20px; background: #1a1a1a; border-top: 1px solid #2a2a2a;
+    display: flex; align-items: center; justify-content: center; gap: 16px; flex-shrink: 0;
+  }
+  #stage-bar {
+    display: flex; gap: 6px; align-items: center; font-size: 12px; color: #666;
+    min-width: 200px; justify-content: flex-end;
+  }
+  .stage-dot {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 8px; border-radius: 10px; background: #1e1e1e; border: 1px solid #333;
+    transition: all 0.3s;
+  }
+  .stage-dot.active { color: #fff; border-color: #4a9eff; background: #1a3a5c; }
+  .stage-dot.done { color: #6c6; border-color: #4a4; background: #1a2e1a; }
+  .stage-dot .icon { font-size: 11px; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .stage-dot.active .icon { animation: blink 1s infinite; }
+
+  /* Confirm bar (send/re-record buttons) */
+  #confirm-bar {
+    display: none; gap: 10px; align-items: center;
+  }
+  #confirm-bar.visible { display: flex; }
+  .confirm-btn {
+    padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 14px; font-weight: 500; transition: all 0.15s;
+  }
+  #btn-send { background: #4a9eff; color: #fff; }
+  #btn-send:hover { background: #3a8eef; }
+  #btn-rerecord { background: #333; color: #ccc; }
+  #btn-rerecord:hover { background: #444; color: #fff; }
+  #confirm-mode-toggle {
+    display: flex; align-items: center; gap: 4px; font-size: 11px; color: #666;
+    cursor: pointer; user-select: none; position: absolute; right: 20px; bottom: 6px;
+  }
+  #confirm-mode-toggle input { cursor: pointer; }
+  footer { position: relative; }
+
+  #record-btn {
+    width: 64px; height: 64px; border-radius: 50%; border: 3px solid #444;
+    background: #222; color: #e0e0e0; font-size: 26px; cursor: pointer;
+    transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+    user-select: none; flex-shrink: 0;
+  }
+  #record-btn:hover { border-color: #4a9eff; }
+  #record-btn.recording { background: #c0392b; border-color: #e74c3c; animation: pulse 1.2s infinite; }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(231,76,60,0.4); }
+    50% { box-shadow: 0 0 0 14px rgba(231,76,60,0); }
+  }
+  #timer { font-size: 13px; color: #888; min-width: 80px; text-align: left; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar: conversation list -->
+<div id="sidebar">
+  <div id="sidebar-header">
+    <button id="new-conv-btn">+ 新对话</button>
+  </div>
+  <div id="conv-list"></div>
+  <div id="stats-bar">
+    <div class="stat-row">
+      <span class="stat-label">RAM</span>
+      <div class="stat-meter"><div class="stat-meter-fill meter-ok" id="ram-meter"></div></div>
+      <span class="stat-val" id="ram-text">--</span>
+    </div>
+    <div class="stat-row" id="gpu-row" style="display:none">
+      <span class="stat-label">GPU</span>
+      <div class="stat-meter"><div class="stat-meter-fill meter-ok" id="gpu-meter"></div></div>
+      <span class="stat-val" id="gpu-text">--</span>
+    </div>
+  </div>
+</div>
+
+<!-- Main area -->
+<div id="main">
+  <header>
+    <h1>🎙 语音助手</h1>
+    <div class="controls">
+      <select id="skill-select"><option value="default">🤖 默认助手</option></select>
+      <button class="ctrl-btn active" id="btn-zh" onclick="setLang('zh')">中文</button>
+      <button class="ctrl-btn" id="btn-en" onclick="setLang('en')">EN</button>
+      <button class="ctrl-btn active" id="btn-sub" onclick="toggleSubtitle()">字幕</button>
+    </div>
+  </header>
+  <div id="chat"></div>
+  <footer>
+    <div id="stage-bar">
+      <span class="stage-dot" id="s-asr"><span class="icon">🎤</span> 识别</span>
+      <span class="stage-dot" id="s-llm"><span class="icon">🧠</span> 思考</span>
+      <span class="stage-dot" id="s-tts"><span class="icon">🔊</span> 语音</span>
+    </div>
+    <button id="record-btn">🎤</button>
+    <div id="confirm-bar">
+      <button class="confirm-btn" id="btn-send">✓ 发送</button>
+      <button class="confirm-btn" id="btn-rerecord">🔄 重录</button>
+    </div>
+    <div id="timer"></div>
+    <label id="confirm-mode-toggle"><input type="checkbox" id="confirm-mode-cb">确认后发送</label>
+  </footer>
+</div>
+
+</body>
+</html>
+<script>
+// ===================== Socket.IO =====================
+const socket = io("/voice", { transports: ["websocket", "polling"] });
+let lang = "zh", showSubtitle = true;
+let recording = false, processing = false;
+let recStart = 0, timerInterval = null;
+let currentTurn = 0;
+let activeConvId = localStorage.getItem("voice_conv_id") || "";
+
+// ===================== PCM Recording =====================
+const TARGET_SR = 16000;
+let micStream = null, audioCtxRec = null, workletNode = null, pcmChunks = [];
+
+function getProcessorURL() {
+  const code = `
+    class PCMProcessor extends AudioWorkletProcessor {
+      constructor(options) {
+        super();
+        this.targetSR = options.processorOptions.targetSR;
+        this.sourceSR = sampleRate;
+        this.residue = new Float32Array(0);
+      }
+      process(inputs) {
+        const input = inputs[0][0];
+        if (!input) return true;
+        const combined = new Float32Array(this.residue.length + input.length);
+        combined.set(this.residue);
+        combined.set(input, this.residue.length);
+        const ratio = this.sourceSR / this.targetSR;
+        const outLen = Math.floor(combined.length / ratio);
+        if (outLen < 1) { this.residue = combined; return true; }
+        const out = new Int16Array(outLen);
+        for (let i = 0; i < outLen; i++) {
+          const srcIdx = i * ratio;
+          const idx0 = Math.floor(srcIdx);
+          const idx1 = Math.min(idx0 + 1, combined.length - 1);
+          const frac = srcIdx - idx0;
+          const val = combined[idx0] + (combined[idx1] - combined[idx0]) * frac;
+          out[i] = Math.max(-32768, Math.min(32767, Math.round(val * 32767)));
+        }
+        const consumed = Math.ceil(outLen * ratio);
+        this.residue = consumed < combined.length ? combined.slice(consumed) : new Float32Array(0);
+        this.port.postMessage(out.buffer, [out.buffer]);
+        return true;
+      }
+    }
+    registerProcessor('pcm-processor', PCMProcessor);
+  `;
+  return URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+}
+async function startPCMRecording() {
+  pcmChunks = [];
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  audioCtxRec = new AudioContext();
+  const url = getProcessorURL();
+  await audioCtxRec.audioWorklet.addModule(url);
+  URL.revokeObjectURL(url);
+  const src = audioCtxRec.createMediaStreamSource(micStream);
+  workletNode = new AudioWorkletNode(audioCtxRec, 'pcm-processor', { processorOptions: { targetSR: TARGET_SR } });
+  workletNode.port.onmessage = e => pcmChunks.push(new Int16Array(e.data));
+  src.connect(workletNode);
+}
+function stopPCMRecording() {
+  if (workletNode) { workletNode.disconnect(); workletNode = null; }
+  if (audioCtxRec) { audioCtxRec.close(); audioCtxRec = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  let len = 0; for (const c of pcmChunks) len += c.length;
+  const merged = new Int16Array(len); let off = 0;
+  for (const c of pcmChunks) { merged.set(c, off); off += c.length; }
+  pcmChunks = []; return merged;
+}
+function buildWAV(d, sr) {
+  const ds = d.length * 2, buf = new ArrayBuffer(44 + ds), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4,36+ds,true); w(8,'WAVE'); w(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true);
+  v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,ds,true);
+  new Int16Array(buf,44).set(d); return buf;
+}
+
+// ===================== TTS Playback =====================
+let audioCtxPlay = null, nextTime = 0, scheduledSources = [];
+function getPlayCtx() {
+  if (!audioCtxPlay) audioCtxPlay = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+  if (audioCtxPlay.state === "suspended") audioCtxPlay.resume();
+  return audioCtxPlay;
+}
+function playChunk(int16) {
+  if (!int16 || !int16.length) return;
+  const ctx = getPlayCtx();
+  const f32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768;
+  const buf = ctx.createBuffer(1, f32.length, 24000);
+  buf.getChannelData(0).set(f32);
+  const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination);
+  const now = ctx.currentTime; if (nextTime < now) nextTime = now;
+  s.start(nextTime); nextTime += buf.duration;
+  scheduledSources.push(s);
+  s.onended = () => { const i = scheduledSources.indexOf(s); if (i !== -1) scheduledSources.splice(i, 1); };
+}
+function stopAllPlayback() {
+  for (const s of scheduledSources) { try { s.stop(); } catch(e) {} }
+  scheduledSources = []; nextTime = 0;
+}
+</script>
+<script>
+// ===================== UI =====================
+const chatEl = document.getElementById("chat");
+const timerEl = document.getElementById("timer");
+const recBtn = document.getElementById("record-btn");
+const convListEl = document.getElementById("conv-list");
+const skillSelect = document.getElementById("skill-select");
+const stageEls = { asr: document.getElementById("s-asr"), llm: document.getElementById("s-llm"), tts: document.getElementById("s-tts") };
+const stageOrder = ["asr", "llm", "tts"];
+
+function setStage(stage) {
+  const idx = stageOrder.indexOf(stage);
+  stageOrder.forEach((s, i) => {
+    stageEls[s].classList.remove("active", "done");
+    if (i < idx) stageEls[s].classList.add("done");
+    else if (i === idx) stageEls[s].classList.add("active");
+  });
+}
+function clearStages() { stageOrder.forEach(s => stageEls[s].classList.remove("active", "done")); }
+function setAllDone() { stageOrder.forEach(s => { stageEls[s].classList.remove("active"); stageEls[s].classList.add("done"); }); }
+
+function addMsg(role, text) {
+  const div = document.createElement("div"); div.className = "msg " + role;
+  if (!showSubtitle) div.classList.add("hidden-subtitle");
+  const lbl = document.createElement("div"); lbl.className = "label";
+  lbl.textContent = role === "user" ? "你" : "AI";
+  const txt = document.createElement("div"); txt.className = "text"; txt.textContent = text;
+  div.appendChild(lbl); div.appendChild(txt);
+  chatEl.appendChild(div); chatEl.scrollTop = chatEl.scrollHeight;
+  return txt;
+}
+let asstEl = null, asstText = "";
+function ensureAsst() { if (!asstEl) { asstText = ""; asstEl = addMsg("assistant", ""); } }
+function appendAsst(chunk) { asstText += chunk; if (asstEl) { asstEl.textContent = asstText; chatEl.scrollTop = chatEl.scrollHeight; } }
+
+function setLang(l) {
+  lang = l;
+  document.getElementById("btn-zh").classList.toggle("active", l === "zh");
+  document.getElementById("btn-en").classList.toggle("active", l === "en");
+  socket.emit("set_language", { language: l });
+}
+function toggleSubtitle() {
+  showSubtitle = !showSubtitle;
+  document.getElementById("btn-sub").classList.toggle("active", showSubtitle);
+  chatEl.querySelectorAll(".msg").forEach(el => el.classList.toggle("hidden-subtitle", !showSubtitle));
+}
+function updateTimer() { timerEl.textContent = ((Date.now() - recStart) / 1000).toFixed(1) + "s"; }
+function resetToIdle() {
+  processing = false; recording = false;
+  recBtn.classList.remove("recording");
+  clearInterval(timerInterval); timerEl.textContent = "";
+  asstEl = null; clearStages(); hideConfirmBar();
+}
+function interruptCurrent() {
+  stopAllPlayback(); socket.emit("interrupt");
+  asstEl = null; currentTurn++; hideConfirmBar();
+}
+
+// ===================== Conversation List =====================
+function renderConvList(convs) {
+  convListEl.innerHTML = "";
+  for (const c of convs) {
+    const div = document.createElement("div");
+    div.className = "conv-item" + (c.conv_id === activeConvId ? " active" : "");
+    const title = document.createElement("span");
+    title.className = "title";
+    title.textContent = c.title || "新对话";
+    const del = document.createElement("button");
+    del.className = "del-btn"; del.textContent = "✕";
+    del.onclick = (e) => { e.stopPropagation(); socket.emit("delete_conversation", { conv_id: c.conv_id }); };
+    div.appendChild(title); div.appendChild(del);
+    div.onclick = () => {
+      if (c.conv_id === activeConvId) return;
+      if (processing) interruptCurrent();
+      processing = false; clearStages();
+      socket.emit("switch_conversation", { conv_id: c.conv_id });
+    };
+    convListEl.appendChild(div);
+  }
+}
+
+document.getElementById("new-conv-btn").onclick = () => {
+  if (processing) interruptCurrent();
+  processing = false; clearStages();
+  socket.emit("new_conversation");
+};
+
+// ===================== Skills =====================
+let currentSkill = localStorage.getItem("voice_skill") || "default";
+async function loadSkills() {
+  try {
+    const res = await fetch("/api/skills");
+    const skills = await res.json();
+    skillSelect.innerHTML = "";
+    for (const s of skills) {
+      const opt = document.createElement("option");
+      opt.value = s.id; opt.textContent = `${s.icon} ${s.name}`;
+      if (s.id === currentSkill) opt.selected = true;
+      skillSelect.appendChild(opt);
+    }
+  } catch (e) { console.error("Failed to load skills:", e); }
+}
+skillSelect.addEventListener("change", () => {
+  currentSkill = skillSelect.value;
+  localStorage.setItem("voice_skill", currentSkill);
+  socket.emit("set_skill", { skill_id: currentSkill });
+});
+loadSkills();
+
+// ===================== Confirm Mode =====================
+const confirmBar = document.getElementById("confirm-bar");
+const confirmCb = document.getElementById("confirm-mode-cb");
+let confirmMode = localStorage.getItem("voice_confirm_mode") === "true";
+let pendingWav = null;  // holds WAV ArrayBuffer waiting for user confirmation
+
+confirmCb.checked = confirmMode;
+confirmCb.addEventListener("change", () => {
+  confirmMode = confirmCb.checked;
+  localStorage.setItem("voice_confirm_mode", confirmMode);
+});
+
+function showConfirmBar() {
+  confirmBar.classList.add("visible");
+  recBtn.style.display = "none";
+}
+function hideConfirmBar() {
+  confirmBar.classList.remove("visible");
+  recBtn.style.display = "flex";
+  pendingWav = null;
+}
+
+function sendPendingAudio() {
+  if (!pendingWav) return;
+  if (processing) interruptCurrent();
+  processing = true; setStage("asr"); currentTurn++;
+  socket.emit("audio_data", pendingWav);
+  hideConfirmBar();
+}
+
+async function startRerecord() {
+  hideConfirmBar();
+  try {
+    await startPCMRecording();
+    recording = true; recBtn.classList.add("recording");
+    recStart = Date.now(); timerInterval = setInterval(updateTimer, 100);
+    clearStages();
+  } catch (e) { console.error("Mic error:", e); }
+}
+
+document.getElementById("btn-send").onclick = sendPendingAudio;
+document.getElementById("btn-rerecord").onclick = startRerecord;
+
+// ===================== Recording =====================
+recBtn.addEventListener("click", async () => {
+  if (recording) {
+    recording = false; recBtn.classList.remove("recording");
+    clearInterval(timerInterval); timerEl.textContent = "";
+    const pcm = stopPCMRecording();
+    if (pcm.length / TARGET_SR * 1000 < 300) { clearStages(); return; }
+    const wavBuf = buildWAV(pcm, TARGET_SR);
+
+    if (confirmMode) {
+      // Hold the audio, show send/re-record buttons
+      pendingWav = wavBuf;
+      showConfirmBar();
+      return;
+    }
+
+    // Direct send (default mode)
+    if (processing) interruptCurrent();
+    processing = true; setStage("asr"); currentTurn++;
+    socket.emit("audio_data", wavBuf);
+    return;
+  }
+  if (processing) { interruptCurrent(); processing = false; clearStages(); }
+  try {
+    await startPCMRecording();
+    recording = true; recBtn.classList.add("recording");
+    recStart = Date.now(); timerInterval = setInterval(updateTimer, 100);
+    clearStages();
+  } catch (e) { console.error("Mic error:", e); }
+});
+
+// ===================== Socket Events =====================
+socket.on("connect", () => {
+  clearStages();
+  socket.emit("init_session", { conv_id: activeConvId });
+  socket.emit("set_language", { language: lang });
+  socket.emit("set_skill", { skill_id: currentSkill });
+});
+socket.on("disconnect", () => resetToIdle());
+
+socket.on("conv_loaded", data => {
+  activeConvId = data.conv_id;
+  localStorage.setItem("voice_conv_id", activeConvId);
+  chatEl.innerHTML = ""; asstEl = null; asstText = "";
+  // Restore skill selector
+  if (data.skill_id && data.skill_id !== currentSkill) {
+    currentSkill = data.skill_id;
+    localStorage.setItem("voice_skill", currentSkill);
+    skillSelect.value = currentSkill;
+    socket.emit("set_skill", { skill_id: currentSkill });
+  }
+  for (const m of (data.messages || [])) {
+    if (m.role === "user" || m.role === "assistant") addMsg(m.role, m.content);
+  }
+  // Highlight in sidebar
+  convListEl.querySelectorAll(".conv-item").forEach(el => el.classList.remove("active"));
+  convListEl.querySelectorAll(".conv-item").forEach(el => {
+    // match by checking if this is the right one
+  });
+});
+
+socket.on("conv_list", data => {
+  renderConvList(data.conversations || []);
+});
+
+socket.on("stage", data => { if (processing) setStage(data.stage); });
+socket.on("transcript", data => { if (processing) addMsg("user", data.text); });
+socket.on("llm_chunk", data => { if (processing) { ensureAsst(); appendAsst(data.text); } });
+socket.on("audio_chunk", data => {
+  if (!processing) return;
+  if (data instanceof ArrayBuffer) playChunk(new Int16Array(data));
+  else if (data instanceof Blob) data.arrayBuffer().then(buf => { if (processing) playChunk(new Int16Array(buf)); });
+  else if (data.buffer) playChunk(new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2));
+});
+socket.on("audio_done", () => { processing = false; asstEl = null; setAllDone(); setTimeout(clearStages, 2000); });
+socket.on("interrupted", () => { processing = false; clearStages(); });
+socket.on("error", data => { console.error("Server:", data.message); processing = false; asstEl = null; clearStages(); });
+recBtn.addEventListener("contextmenu", e => e.preventDefault());
+
+// ===================== Server Stats Polling =====================
+function meterClass(pct) { return pct > 90 ? "meter-crit" : pct > 70 ? "meter-warn" : "meter-ok"; }
+async function pollStats() {
+  try {
+    const r = await fetch("/api/stats");
+    const s = await r.json();
+    const ramMeter = document.getElementById("ram-meter");
+    const ramText = document.getElementById("ram-text");
+    ramMeter.style.width = s.ram_percent + "%";
+    ramMeter.className = "stat-meter-fill " + meterClass(s.ram_percent);
+    ramText.textContent = s.ram_used_gb + "/" + s.ram_total_gb + "G";
+    if (s.gpu) {
+      const gpuRow = document.getElementById("gpu-row");
+      const gpuMeter = document.getElementById("gpu-meter");
+      const gpuText = document.getElementById("gpu-text");
+      gpuRow.style.display = "flex";
+      gpuMeter.style.width = s.gpu.percent + "%";
+      gpuMeter.className = "stat-meter-fill " + meterClass(s.gpu.percent);
+      gpuText.textContent = s.gpu.used_gb + "/" + s.gpu.total_gb + "G";
+    }
+  } catch (e) {}
+}
+pollStats();
+setInterval(pollStats, 3000);
+</script>

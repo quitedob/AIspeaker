@@ -1,0 +1,8 @@
+tmp/
+.vscode/
+.kiro/
+.claude/
+.cursor/
+.antigrativy/
+.venv/
+__pycache__/

@@ -7,3 +7,12 @@ tmp/
 .venv/
 __pycache__/
 config.yaml
+example/
+tools/
+
+# 微调产物（每个 checkpoint ~2.4GB）
+finetune/output*/
+finetune/*.wav
+finetune/*.jsonl
+finetune/train.log
+finetune/overfit*.jsonl

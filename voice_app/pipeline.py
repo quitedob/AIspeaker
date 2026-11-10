@@ -45,9 +45,9 @@ def transcribe_audio(asr: ASREngine, audio_bytes: bytes) -> str:
     else:
         logger.warning(f"Not a valid WAV header: {audio_bytes[:12]}")
 
-    path_wav = tempfile.mktemp(suffix=".wav")
+    fd, path_wav = tempfile.mkstemp(suffix=".wav")
     try:
-        with open(path_wav, "wb") as f:
+        with os.fdopen(fd, "wb") as f:
             f.write(audio_bytes)
 
         # Verify written file
@@ -217,7 +217,12 @@ def run_conversation_pipeline(
             return
         logger.info(f"Pipeline: ASR result: {text[:80]}")
         on_transcript(text)
-        history.append({"role": "user", "content": text})
+        user_msg = {"role": "user", "content": text}
+        # Build the message list for the LLM without mutating the persisted
+        # history yet. The turn is only committed once the assistant response
+        # is fully generated, so a failure/cancel mid-flight never leaves an
+        # orphan user message in saved history.
+        llm_messages = history + [user_msg]
 
         # 2. LLM streaming
         on_stage("llm")
@@ -228,7 +233,7 @@ def run_conversation_pipeline(
         tts_started = False
 
         logger.info("Pipeline: starting LLM stream...")
-        for token in llm.chat_stream(history, language=language,
+        for token in llm.chat_stream(llm_messages, language=language,
                                       skill_prompt=skill_prompt):
             if cancel_event.is_set():
                 logger.info("Pipeline cancelled during LLM")
@@ -279,6 +284,9 @@ def run_conversation_pipeline(
                     emitter.feed(audio_np)
 
         emitter.flush()
+        # Commit the full turn (user + assistant) only after the response is
+        # complete, keeping role alternation intact in persisted history.
+        history.append(user_msg)
         history.append({"role": "assistant", "content": full_display})
         logger.info("Pipeline: done")
 

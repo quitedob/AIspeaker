@@ -121,6 +121,7 @@ class VoiceNamespace(Namespace):
             "skill_id": session["skill_id"],
             "title": conv.get("title", ""),
         }, namespace="/voice", room=sid)
+        self._send_conv_list(sid)
 
     def on_delete_conversation(self, data):
         """Delete a conversation."""
@@ -193,6 +194,13 @@ class VoiceNamespace(Namespace):
             audio_bytes = bytes(data["data"])
         else:
             self.sio.emit("error", {"message": "Invalid audio data"},
+                          namespace="/voice", room=sid)
+            return
+
+        # Reject oversized payloads (WebSocket transport bypasses the HTTP
+        # buffer limit). A few seconds of 16kHz mono PCM is well under this.
+        if len(audio_bytes) > 10_000_000:
+            self.sio.emit("error", {"message": "音频数据过大，请缩短录音时长。"},
                           namespace="/voice", room=sid)
             return
 

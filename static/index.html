@@ -159,9 +159,34 @@
     50% { box-shadow: 0 0 0 14px rgba(231,76,60,0); }
   }
   #timer { font-size: 13px; color: #888; min-width: 80px; text-align: left; font-variant-numeric: tabular-nums; }
+
+  /* Connection banner */
+  #conn-banner {
+    display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 8px 16px; text-align: center; font-size: 13px; color: #fff;
+    background: #c0392b;
+  }
+  #conn-banner.visible { display: block; }
+
+  /* Toast notifications */
+  #toast-container {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center;
+    pointer-events: none;
+  }
+  .toast {
+    background: #2a2a2a; color: #fff; padding: 10px 18px; border-radius: 8px;
+    font-size: 14px; border: 1px solid #3a3a3a; max-width: 90vw;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4); animation: toast-in 0.2s ease;
+  }
+  .toast.error { background: #3a1a1a; border-color: #e74c3c; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 </head>
 <body>
+
+<div id="conn-banner"></div>
+<div id="toast-container"></div>
 
 <!-- Sidebar: conversation list -->
 <div id="sidebar">
@@ -201,7 +226,7 @@
       <span class="stage-dot" id="s-llm"><span class="icon">🧠</span> 思考</span>
       <span class="stage-dot" id="s-tts"><span class="icon">🔊</span> 语音</span>
     </div>
-    <button id="record-btn">🎤</button>
+    <button id="record-btn" aria-label="开始/停止录音">🎤</button>
     <div id="confirm-bar">
       <button class="confirm-btn" id="btn-send">✓ 发送</button>
       <button class="confirm-btn" id="btn-rerecord">🔄 重录</button>
@@ -322,6 +347,29 @@ function stopAllPlayback() {
 <script>
 // ===================== UI =====================
 const chatEl = document.getElementById("chat");
+
+// ----- Toast + connection banner -----
+const toastContainer = document.getElementById("toast-container");
+const connBanner = document.getElementById("conn-banner");
+function showToast(message, isError = false, duration = 4000) {
+  const t = document.createElement("div");
+  t.className = "toast" + (isError ? " error" : "");
+  t.textContent = message;
+  toastContainer.appendChild(t);
+  setTimeout(() => t.remove(), duration);
+}
+function showBanner(message) { connBanner.textContent = message; connBanner.classList.add("visible"); }
+function hideBanner() { connBanner.classList.remove("visible"); }
+function handleMicError(e) {
+  recording = false; recBtn.classList.remove("recording");
+  clearInterval(timerInterval); timerEl.textContent = "";
+  let msg = "无法访问麦克风，请在浏览器设置中允许麦克风权限。";
+  if (e && (e.name === "NotFoundError" || e.name === "DevicesNotFoundError")) {
+    msg = "未检测到麦克风设备，请检查麦克风连接。";
+  }
+  showToast(msg, true, 5000);
+}
+
 const timerEl = document.getElementById("timer");
 const recBtn = document.getElementById("record-btn");
 const convListEl = document.getElementById("conv-list");
@@ -383,11 +431,13 @@ function renderConvList(convs) {
   for (const c of convs) {
     const div = document.createElement("div");
     div.className = "conv-item" + (c.conv_id === activeConvId ? " active" : "");
+    div.dataset.convId = c.conv_id;
     const title = document.createElement("span");
     title.className = "title";
     title.textContent = c.title || "新对话";
     const del = document.createElement("button");
     del.className = "del-btn"; del.textContent = "✕";
+    del.setAttribute("aria-label", "删除对话");
     del.onclick = (e) => { e.stopPropagation(); socket.emit("delete_conversation", { conv_id: c.conv_id }); };
     div.appendChild(title); div.appendChild(del);
     div.onclick = () => {
@@ -465,7 +515,7 @@ async function startRerecord() {
     recording = true; recBtn.classList.add("recording");
     recStart = Date.now(); timerInterval = setInterval(updateTimer, 100);
     clearStages();
-  } catch (e) { console.error("Mic error:", e); }
+  } catch (e) { console.error("Mic error:", e); handleMicError(e); }
 }
 
 document.getElementById("btn-send").onclick = sendPendingAudio;
@@ -499,17 +549,19 @@ recBtn.addEventListener("click", async () => {
     recording = true; recBtn.classList.add("recording");
     recStart = Date.now(); timerInterval = setInterval(updateTimer, 100);
     clearStages();
-  } catch (e) { console.error("Mic error:", e); }
+  } catch (e) { console.error("Mic error:", e); handleMicError(e); }
 });
 
 // ===================== Socket Events =====================
 socket.on("connect", () => {
+  hideBanner();
   clearStages();
   socket.emit("init_session", { conv_id: activeConvId });
   socket.emit("set_language", { language: lang });
   socket.emit("set_skill", { skill_id: currentSkill });
 });
-socket.on("disconnect", () => resetToIdle());
+socket.on("disconnect", () => { showBanner("已断开连接，正在重连..."); resetToIdle(); });
+socket.on("connect_error", () => { showBanner("无法连接到服务器，正在重试..."); });
 
 socket.on("conv_loaded", data => {
   activeConvId = data.conv_id;
@@ -525,10 +577,9 @@ socket.on("conv_loaded", data => {
   for (const m of (data.messages || [])) {
     if (m.role === "user" || m.role === "assistant") addMsg(m.role, m.content);
   }
-  // Highlight in sidebar
-  convListEl.querySelectorAll(".conv-item").forEach(el => el.classList.remove("active"));
+  // Highlight the active conversation in the sidebar
   convListEl.querySelectorAll(".conv-item").forEach(el => {
-    // match by checking if this is the right one
+    el.classList.toggle("active", el.dataset.convId === activeConvId);
   });
 });
 
@@ -547,7 +598,7 @@ socket.on("audio_chunk", data => {
 });
 socket.on("audio_done", () => { processing = false; asstEl = null; setAllDone(); setTimeout(clearStages, 2000); });
 socket.on("interrupted", () => { processing = false; clearStages(); });
-socket.on("error", data => { console.error("Server:", data.message); processing = false; asstEl = null; clearStages(); });
+socket.on("error", data => { console.error("Server:", data.message); showToast(data.message || "服务器错误", true); processing = false; asstEl = null; clearStages(); });
 recBtn.addEventListener("contextmenu", e => e.preventDefault());
 
 // ===================== Server Stats Polling =====================

@@ -40,6 +40,7 @@ def main():
     asr = ASREngine(
         model=asr_cfg.get("model", "iic/SenseVoiceSmall"),
         vad_model=asr_cfg.get("vad_model", "fsmn-vad"),
+        device=asr_cfg.get("device", "cuda:0"),
     )
 
     # 4. LLM client
@@ -52,6 +53,7 @@ def main():
         temperature=llm_cfg.get("temperature", 0.7),
         system_prompt_zh=llm_cfg.get("system_prompt_zh", ""),
         system_prompt_en=llm_cfg.get("system_prompt_en", ""),
+        timeout=llm_cfg.get("timeout", 30.0),
     )
 
     # 5. Flask + SocketIO

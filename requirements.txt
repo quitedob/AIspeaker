@@ -1,0 +1,15 @@
+flask
+flask_socketio
+funasr
+faster_qwen3_tts
+numpy
+openai
+psutil
+pyyaml
+requests
+torch
+
+# Dataset tooling (example/ wwTTS download)
+modelscope[framework]
+py7zr
+torchcodec

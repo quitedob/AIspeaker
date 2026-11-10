@@ -71,13 +71,13 @@ def _parse_asr_result(raw_res: Any) -> str:
 
 class ASREngine:
     def __init__(self, model: str = "iic/SenseVoiceSmall",
-                 vad_model: str = "fsmn-vad"):
-        logger.info(f"Loading ASR model: {model}")
+                 vad_model: str = "fsmn-vad", device: str = "cuda:0"):
+        logger.info(f"Loading ASR model: {model} on {device}")
         self.model = AutoModel(
             model=model,
             vad_model=vad_model,
             vad_kwargs={"max_single_segment_time": 30000},
-            device="cuda:0",
+            device=device,
         )
         logger.info("ASR engine ready")
 

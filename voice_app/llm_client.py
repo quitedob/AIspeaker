@@ -7,8 +7,9 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     def __init__(self, base_url: str, api_key: str, model: str,
                  max_tokens: int = 512, temperature: float = 0.7,
-                 system_prompt_zh: str = "", system_prompt_en: str = ""):
-        self.client = OpenAI(base_url=base_url, api_key=api_key)
+                 system_prompt_zh: str = "", system_prompt_en: str = "",
+                 timeout: float = 30.0):
+        self.client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout)
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature

@@ -1,0 +1,42 @@
+
+********
+Warning: flash-attn is not installed. Will only run the manual PyTorch version. Please install flash-attn for faster inference.
+********
+ 
+'sox' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+SoX could not be found!
+
+    If you do not have SoX, proceed here:
+     - - - http://sox.sourceforge.net/ - - -
+
+    If you do (or think that you should) have SoX, double-check your
+    path variables.
+    
+`torch_dtype` is deprecated! Use `dtype` instead!
+D:\python\qwen3tts\.venv\Lib\site-packages\transformers\modeling_utils.py:6105: UserWarning: expandable_segments not supported on this platform (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\c10/cuda/CUDAAllocatorConfig.h:39.)
+  _ = torch.empty(byte_count // factor, dtype=torch.float16, device=device, requires_grad=False)
+[mem] gradient checkpointing enabled
+`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`...
+`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.
+Epoch 0 | Step 0 | OptStep 0 | Loss: 11.8323 | main 10.0393 sub 5.9766 | peak 4.30GB reserved 5.14GB
+Epoch 0 | Step 10 | OptStep 2 | Loss: 12.3316 | main 10.5203 sub 6.0376 | peak 9.31GB reserved 9.91GB
+Epoch 0 | Step 20 | OptStep 5 | Loss: 10.1578 | main 8.4017 sub 5.8537 | peak 9.39GB reserved 10.03GB
+Epoch 0 | Step 30 | OptStep 7 | Loss: 11.6249 | main 9.9383 sub 5.6221 | peak 10.00GB reserved 10.80GB
+Epoch 0 | Step 40 | OptStep 10 | Loss: 10.5147 | main 8.6196 sub 6.3170 | peak 10.00GB reserved 10.80GB
+Epoch 1 | Step 0 | OptStep 11 | Loss: 9.6208 | main 8.0421 sub 5.2623 | peak 10.00GB reserved 10.80GB
+Epoch 1 | Step 10 | OptStep 13 | Loss: 10.5528 | main 8.8151 sub 5.7921 | peak 10.00GB reserved 10.80GB
+Epoch 1 | Step 20 | OptStep 16 | Loss: 10.2286 | main 8.3398 sub 6.2958 | peak 10.00GB reserved 10.80GB
+Epoch 1 | Step 30 | OptStep 18 | Loss: 9.3009 | main 7.6139 sub 5.6234 | peak 10.12GB reserved 11.13GB
+Epoch 1 | Step 40 | OptStep 21 | Loss: 9.7976 | main 8.1243 sub 5.5777 | peak 10.12GB reserved 11.13GB
+Epoch 2 | Step 0 | OptStep 22 | Loss: 8.6820 | main 7.1317 sub 5.1676 | peak 10.12GB reserved 11.13GB
+Epoch 2 | Step 10 | OptStep 24 | Loss: 9.3581 | main 7.6442 sub 5.7131 | peak 10.12GB reserved 11.13GB
+Epoch 2 | Step 20 | OptStep 27 | Loss: 8.8486 | main 7.1785 sub 5.5671 | peak 10.12GB reserved 11.13GB
+Epoch 2 | Step 30 | OptStep 29 | Loss: 9.0458 | main 7.3494 sub 5.6546 | peak 10.12GB reserved 11.13GB
+Epoch 2 | Step 40 | OptStep 32 | Loss: 9.9017 | main 8.1797 sub 5.7399 | peak 10.12GB reserved 11.13GB
+Epoch 3 | Step 0 | OptStep 33 | Loss: 8.0967 | main 6.4415 sub 5.5176 | peak 10.12GB reserved 11.13GB
+Epoch 3 | Step 10 | OptStep 35 | Loss: 9.3783 | main 7.6336 sub 5.8158 | peak 10.12GB reserved 11.13GB
+Epoch 3 | Step 20 | OptStep 38 | Loss: 8.1305 | main 6.3765 sub 5.8468 | peak 10.12GB reserved 11.13GB
+Epoch 3 | Step 30 | OptStep 40 | Loss: 8.0987 | main 6.4199 sub 5.5962 | peak 10.12GB reserved 11.13GB
+Epoch 3 | Step 40 | OptStep 43 | Loss: 8.2483 | main 6.5222 sub 5.7537 | peak 10.12GB reserved 11.13GB
+Epoch 4 | Step 0 | OptStep 44 | Loss: 8.3282 | main 6.6582 sub 5.5668 | peak 10.12GB reserved 11.13GB
